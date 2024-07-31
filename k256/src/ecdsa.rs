@@ -296,6 +296,7 @@ mod tests {
                 sig: &[u8],
                 pass: bool,
                 p1363_sig: bool,
+                normalize_s: bool,
             ) -> Option<&'static str> {
                 let x = element_from_padded_slice::<Secp256k1>(wx);
                 let y = element_from_padded_slice::<Secp256k1>(wy);
@@ -306,13 +307,25 @@ mod tests {
 
                 let sig = if p1363_sig {
                     match Signature::<Secp256k1>::from_slice(sig) {
-                        Ok(s) => s.normalize_s(),
+                        Ok(s) => {
+                            if normalize_s {
+                                s.normalize_s()
+                            } else {
+                                s
+                            }
+                        }
                         Err(_) if !pass => return None,
                         Err(_) => return Some("failed to parse signature P1363"),
                     }
                 } else {
                     match Signature::<Secp256k1>::from_der(sig) {
-                        Ok(s) => s.normalize_s(),
+                        Ok(s) => {
+                            if normalize_s {
+                                s.normalize_s()
+                            } else {
+                                s
+                            }
+                        }
                         Err(_) if !pass => return None,
                         Err(_) => return Some("failed to parse signature ASN.1"),
                     }
@@ -326,7 +339,7 @@ mod tests {
                 }
             }
 
-            fn run(data: &[u8], p1363_sig: bool) {
+            fn run(data: &[u8], p1363_sig: bool, normalize_s: bool) {
                 for (i, row) in Blob5Iterator::new(data).unwrap().enumerate() {
                     let [wx, wy, msg, sig, status] = row.unwrap();
                     let pass = match status[0] {
@@ -334,7 +347,7 @@ mod tests {
                         1 => true,
                         _ => panic!("invalid value for pass flag"),
                     };
-                    if let Some(desc) = run_test(wx, wy, msg, sig, pass, p1363_sig) {
+                    if let Some(desc) = run_test(wx, wy, msg, sig, pass, p1363_sig, normalize_s) {
                         panic!(
                             "\n\
                                      Failed test №{}: {}\n\
@@ -355,9 +368,11 @@ mod tests {
                 }
             }
             let data = include_bytes!(concat!("test_vectors/data/", "wycheproof", ".blb"));
-            run(data, false);
+            run(data, false, true);
             let data2 = include_bytes!(concat!("test_vectors/data/", "wycheproof-p1316", ".blb"));
-            run(data2, true);
+            run(data2, true, true);
+            let data2 = include_bytes!(concat!("test_vectors/data/", "wycheproof-bitcoin", ".blb"));
+            run(data2, false, false);
         }
     }
 }
